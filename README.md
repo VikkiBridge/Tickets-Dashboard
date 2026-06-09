@@ -1,5 +1,5 @@
 # 📊 Tickets-Dashboard
-Power BI Dashboard created to analyse tickets, types, ages, satisfaction feedback
+---
 ## 🏢 Business Problem & Objective
 The internal IT Support team was experiencing a high volume of support tickets across multiple functions and branches, but lacked a centralised, real-time mechanism to monitor performance and service-level agreements (SLAs).
 --- 
