@@ -1,0 +1,89 @@
+let 
+
+// 1. Get the Token 
+token_url = "https://companyname.haloitsm.com/auth/token", 
+client_id = "IdNo", 
+client_secret = "SecretNo", 
+token_response = Json.Document(Web.Contents(token_url, [ 
+	Content = Text.ToBinary("grant_type=client_credentials&client_id=" & client_id & "&client_secret=" & client_secret & "&scope=all"), 
+	Headers = [#"Content-Type" = "application/x-www-form-urlencoded"]
+	 ])), 
+
+// 2. Extract token - check if your API returns 'access_token' or 'token' 
+AccessToken = "Bearer " & token_response[access_token],
+    // 3. Start your loop
+    GetPage = (PageNum) as table =>
+   let
+       Source = Json.Document(Web.Contents("https://companyname.haloitsm.com",
+       [
+           RelativePath = "api/Tickets",
+           Query = [
+               page_size = "50",
+               page_no = Text.From(PageNum),
+               paginate = "true"
+           ],
+           Headers = [Authorization=AccessToken]
+       ])),
+       Tickets = Source[tickets],
+       TableOut = if Tickets is list then 
+       Table.FromList(Tickets, Splitter.SplitByNothing(), null, null, ExtraValues.Error)
+        else #table({},{})
+   in
+       TableOut,
+   // 3. Generate pages
+   PageIndices = {1..80},
+   AllPages = List.Transform(PageIndices, each GetPage(_)),
+   CombinedTickets = Table.Combine(AllPages),	
+
+
+// 4. Combine and Clean 
+TableConverted = CombinedTickets,
+
+//6. Buffer the table - stops Power BI re-evaluating upstream steps
+    BufferedTable = Table.Buffer(TableConverted),
+    #"Expanded Column2" = Table.ExpandRecordColumn(BufferedTable, "Column1", {"id", "dateoccurred", "summary", "details", "status_id", "tickettype_id", "sla_id", "priority_id", "client_id", "client_name", "site_id", "site_name", "user_id", "user_name", "team_id", "team", "agent_id", "category_1", "category_2", "category_3", "category_4", "category_1_display", "category_2_display", "category_3_display", "category_4_display", "estimate", "estimatedays", "child_count", "attachment_count", "flagged", "read", "enduserstatus", "onhold", "respondbydate", "fixbydate", "excludefromsla", "slaholdtime", "site_timezone", "lastactiondate", "last_update", "organisation_id", "department_id", "reportedby", "user_email", "emailtolist", "matched_kb_id", "product_id", "release_id", "release2_id", "release3_id", "lastincomingemail", "inventory_number", "workflow_id", "workflow_step", "workflow_seq", "pipeline_stage_id", "is_vip", "isimportantcontact", "inactive", "impact", "urgency", "starttime", "starttimeslot", "targetdate", "targettime", "targettimeslot", "deadlinedate", "oppcompanyname", "oppvalueadjusted", "cost", "quantity", "userdef1", "userdef2", "userdef3", "userdef4", "userdef5", "source", "release_important", "releasenotegroup_id", "supplier_status", "appointment_type", "section_timezone", "projectinternaltask", "impactlevel", "guid", "reviewed", "merged_into_id", "first_respond_by_date", "table", "use", "maximumRestrictedPriority", "idsummary", "ticketage", "useful_count", "notuseful_count", "updateservicestatus", "servicestatusnote", "itil_requesttype_id", "ticket_tags", "invoiceseperatelyoverride", "purchaseordernumber", "_open_search_score", "risklevel", "emailcclist", "categoryid_1", "categoryid_2", "responsedate", "slaresponsestate", "dateclosed", "dateassigned", "hasbeenclosed", "date_fully_closed", "slatimeelapsed", "sla_first_response_state", "closure_agent_id", "slastate", "reassigncount", "parent_id", "main_project_id", "nextactivityorappointmentdate"}, {"id", "dateoccurred", "summary", "details", "status_id", "tickettype_id", "sla_id", "priority_id", "client_id", "client_name", "site_id", "site_name", "user_id", "user_name", "team_id", "team", "agent_id", "category_1", "category_2", "category_3", "category_4", "category_1_display", "category_2_display", "category_3_display", "category_4_display", "estimate", "estimatedays", "child_count", "attachment_count", "flagged", "read", "enduserstatus", "onhold", "respondbydate", "fixbydate", "excludefromsla", "slaholdtime", "site_timezone", "lastactiondate", "last_update", "organisation_id", "department_id", "reportedby", "user_email", "emailtolist", "matched_kb_id", "product_id", "release_id", "release2_id", "release3_id", "lastincomingemail", "inventory_number", "workflow_id", "workflow_step", "workflow_seq", "pipeline_stage_id", "is_vip", "isimportantcontact", "inactive", "impact", "urgency", "starttime", "starttimeslot", "targetdate", "targettime", "targettimeslot", "deadlinedate", "oppcompanyname", "oppvalueadjusted", "cost", "quantity", "userdef1", "userdef2", "userdef3", "userdef4", "userdef5", "source", "release_important", "releasenotegroup_id", "supplier_status", "appointment_type", "section_timezone", "projectinternaltask", "impactlevel", "guid", "reviewed", "merged_into_id", "first_respond_by_date", "table", "use", "maximumRestrictedPriority", "idsummary", "ticketage", "useful_count", "notuseful_count", "updateservicestatus", "servicestatusnote", "itil_requesttype_id", "ticket_tags", "invoiceseperatelyoverride", "purchaseordernumber", "_open_search_score", "risklevel", "emailcclist", "categoryid_1", "categoryid_2", "responsedate", "slaresponsestate", "dateclosed", "dateassigned", "hasbeenclosed", "date_fully_closed", "slatimeelapsed", "sla_first_response_state", "closure_agent_id", "slastate", "reassigncount", "parent_id", "main_project_id", "nextactivityorappointmentdate"}),
+    #"Added Custom3" = Table.AddColumn(#"Expanded Column2", "Ticket Age Groups", each if [ticketage] <= 7 then "0-7"
+else if [ticketage] <= 14 then "7-14"
+else "14+"),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Added Custom3", "site_name", Splitter.SplitTextByDelimiter("-", QuoteStyle.Csv), {"site_name.1", "site_name.2"}),
+    #"Renamed Columns1" = Table.RenameColumns(#"Split Column by Delimiter",{{"site_name.1", "site_name"}}),
+    #"Changed Type8" = Table.TransformColumnTypes(#"Renamed Columns1",{{"site_name", type text}, {"site_name.2", type text}}),
+    #"Trimmed Text" = Table.TransformColumns(#"Changed Type8",{{"site_name.2", Text.Trim, type text}}),
+    #"Added Conditional Column5" = Table.AddColumn(#"Trimmed Text", "HO Name", each if [site_name.2] = "Braintree" then "Braintree" else if [site_name.2] = "Hoddesdon" then "Hoddesdon" else null),
+    #"Replaced Value" = Table.ReplaceValue(#"Added Conditional Column5","Braintree",null,Replacer.ReplaceValue,{"site_name.2"}),
+    #"Replaced Value1" = Table.ReplaceValue(#"Replaced Value","Hoddesdon",null,Replacer.ReplaceValue,{"site_name.2"}),
+    #"Inserted Merged Column" = Table.AddColumn(#"Replaced Value1", "Unique Name", each Text.Combine({[client_name], [site_name], Text.From([HO Name], "en-GB")}, " "), type text),
+    #"Sorted Rows" = Table.Sort(#"Inserted Merged Column",{{"site_name.2", Order.Descending}}),
+    #"Changed Type9" = Table.TransformColumnTypes(#"Sorted Rows",{{"site_name.2", Int64.Type}}),
+    #"Added Conditional Column2" = Table.AddColumn(#"Changed Type9", "SLA 1st Response State", each if [tickettype_id] = 72 then null else if [tickettype_id] = 73 then null else if [tickettype_id] = 74 then null else [sla_first_response_state]),
+    #"Added Conditional Column3" = Table.AddColumn(#"Added Conditional Column2", "SLA Response State", each if [tickettype_id] = 72 then null else if [tickettype_id] = 73 then null else if [tickettype_id] = 74 then null else [slaresponsestate]),
+    #"Added Conditional Column4" = Table.AddColumn(#"Added Conditional Column3", "SLA Resolution State", each if [tickettype_id] = 72 then null else if [tickettype_id] = 73 then null else if [tickettype_id] = 74 then null else [slastate]),
+    #"Added Custom" = Table.AddColumn(#"Added Conditional Column4", "Count of ticket", each 1),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Added Custom",{{"Count of ticket", Int64.Type}}),
+    #"Changed Type10" = Table.TransformColumnTypes(#"Changed Type1",{{"tickettype_id", Int64.Type}, {"agent_id", Int64.Type}}),
+    #"Added Custom1" = Table.AddColumn(#"Changed Type10", "Today", each DateTime.Date(DateTime.LocalNow())),
+    #"Added Conditional Column" = Table.AddColumn(#"Added Custom1", "Closed Date or today", each if [dateclosed] = null then [Today] else [dateclosed]),
+    #"Changed Type2" = Table.TransformColumnTypes(#"Added Conditional Column",{{"Today", type date}, {"Closed Date or today", type datetime}}),
+    #"Added Conditional Column1" = Table.AddColumn(#"Changed Type2", "Agent", each if [agent_id] = 1 then [closure_agent_id] else [agent_id]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Added Conditional Column1",{{"ticketage", type number}, {"dateoccurred", type datetime}, {"respondbydate", type datetime}, {"fixbydate", type datetime}, {"lastactiondate", type datetime}, {"last_update", type datetime}, {"first_respond_by_date", type datetime}, {"responsedate", type datetime}, {"dateclosed", type datetime}, {"dateassigned", type datetime}, {"date_fully_closed", type datetime}, {"Agent", Int64.Type}}),
+    #"Inserted Week of Year" = Table.AddColumn(#"Changed Type", "Week of Year", each Date.WeekOfYear([dateoccurred]), Int64.Type),
+    #"Renamed Columns" = Table.RenameColumns(#"Inserted Week of Year",{{"Week of Year", "Week of Year Occurence"}}),
+    #"Inserted Start of Week" = Table.AddColumn(#"Renamed Columns", "Start of Week", each Date.StartOfWeek([dateoccurred]), type datetime),
+    #"Changed Type3" = Table.TransformColumnTypes(#"Inserted Start of Week",{{"Start of Week", type date}}),
+    #"Duplicated Column" = Table.DuplicateColumn(#"Changed Type3", "dateoccurred", "Date Opened"),
+    #"Changed Type4" = Table.TransformColumnTypes(#"Duplicated Column",{{"Date Opened", type date}}),
+    #"Duplicated Column1" = Table.DuplicateColumn(#"Changed Type4", "dateclosed", "Date Closed"),
+    #"Changed Type5" = Table.TransformColumnTypes(#"Duplicated Column1",{{"Date Closed", type date}}),
+    #"Added Custom2" = Table.AddColumn(#"Changed Type5", "Days ticket open", each if [Date Closed] = null then
+
+Duration.Days(DateTime.Date(DateTime.LocalNow()) - [Date Opened])+1
+
+else
+    Duration.Days([Date Closed] - [Date Opened])+1),
+    #"Changed Type6" = Table.TransformColumnTypes(#"Added Custom2",{{"Days ticket open", Int64.Type}, {"priority_id", Int64.Type}, {"id", Int64.Type}}),
+    #"Added Custom4" = Table.AddColumn(#"Changed Type6", "ResonseTime", each [responsedate]-[dateoccurred]),
+    #"Changed Type7" = Table.TransformColumnTypes(#"Added Custom4",{{"ResonseTime", type duration}}),
+    #"Sorted Rows1" = Table.Sort(#"Changed Type7",{{"id", Order.Descending}}),
+    #"Added Custom5" = Table.AddColumn(#"Sorted Rows1", "Ticket Link", each "https://motorpartsdirect.haloitsm.com/tickets?area=4&mainview=team&viewid=2&selid=25&sellevel=2&selparentid=&id=" & Text.From ([id]))
+in
+    #"Added Custom5"

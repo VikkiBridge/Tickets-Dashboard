@@ -1,0 +1,53 @@
+let 
+Wait = Table.RowCount(#"Feedback - Source"),
+// 1. Get the Token 
+token_url = "https://companyname.haloitsm.com/auth/token", 
+client_id = "IdNo", 
+client_secret = "SecretNo", 
+token_response = Json.Document(Web.Contents(token_url, [ 
+	Content = Text.ToBinary("grant_type=client_credentials&client_id=" & client_id & "&client_secret=" & client_secret & "&scope=all"), 
+	Headers = [#"Content-Type" = "application/x-www-form-urlencoded"]
+	 ])), 
+
+// Extract token - check if your API returns 'access_token' or 'token' 
+AccessToken = "Bearer " & token_response[access_token],
+
+   // 2. Stabilized Function for Feedback
+   GetPage = (PageNum) as table =>
+   let
+       Source = Json.Document(Web.Contents("https://companyname.haloitsm.com",
+       [
+           RelativePath = "api/Actions",
+           Query = [
+               page_size = "50",
+               page_no = Text.From(PageNum),
+               paginate = "true"
+           ],
+           Headers = [Authorization=AccessToken]
+       ])),
+       // Handle different possible JSON structures safely
+       Data = if Source is list then Source
+              else if Record.HasFields(Source, "actions") then Source[actions]
+              else {},
+
+       TableOut = if Data is list then
+                      Table.FromList(Data, Splitter.SplitByNothing(), null, null, ExtraValues.Error)
+                  else
+                      #table({}, {})
+   in
+       TableOut,
+
+   // 3. Generate pages (Start with 5-10 to test, then expand)
+   PageIndices = {1..10},
+   AllPages = List.Transform(PageIndices, each GetPage(_)),
+   CombinedActions = Table.Combine(AllPages),
+
+   // 4. Connect to your existing cleaning steps
+   Table = CombinedActions,
+
+
+ #"Expanded Column1" = Table.ExpandRecordColumn(Table, "Column1", {"ticket_id", "id", "outcome", "who", "who_type", "who_imgpath", "who_agentid", "datetime", "actiondatecreated", "note", "replied_to_ticket_id", "replied_to_action_id", "created_from_ticket_id", "created_from_action_id", "action_contract_id", "action_travel_contract_id", "project_id", "personal_unread", "actionarrivaldate", "actioncompletiondate", "translations", "on_behalf_of_name", "actionby_agent_id", "guid", "actioncontractid", "actisbillable", "actisreadyforprocessing", "travelisreadyforprocessing", "actionbillingplanid", "outcome_id", "action_systemid", "timetakendays", "timetakenadjusted", "actionchargehours", "actionnonchargeamount", "actionnonchargehours", "actionchargeamount", "actionprepayhours", "actionprepayamount", "actiontravelchargehours", "chargerate", "travel_chargerate", "hiddenfromuser", "important", "old_status", "new_status", "new_status_name", "colour", "attachment_count", "unread", "actionby_application_id", "actionby_user_id", "hide_user_visibility_toggle", "_canupdate", "email_status", "dateemailed", "timetaken", "nonbilltime", "emailfrom", "emailtonew", "emailto", "emailccnew", "emaildirection", "emailcc", "emailsubjectnew", "email_message_id", "emailimportance"}, {"ticket_id", "id", "outcome", "who", "who_type", "who_imgpath", "who_agentid", "datetime", "actiondatecreated", "note", "replied_to_ticket_id", "replied_to_action_id", "created_from_ticket_id", "created_from_action_id", "action_contract_id", "action_travel_contract_id", "project_id", "personal_unread", "actionarrivaldate", "actioncompletiondate", "translations", "on_behalf_of_name", "actionby_agent_id", "guid", "actioncontractid", "actisbillable", "actisreadyforprocessing", "travelisreadyforprocessing", "actionbillingplanid", "outcome_id", "action_systemid", "timetakendays", "timetakenadjusted", "actionchargehours", "actionnonchargeamount", "actionnonchargehours", "actionchargeamount", "actionprepayhours", "actionprepayamount", "actiontravelchargehours", "chargerate", "travel_chargerate", "hiddenfromuser", "important", "old_status", "new_status", "new_status_name", "colour", "attachment_count", "unread", "actionby_application_id", "actionby_user_id", "hide_user_visibility_toggle", "_canupdate", "email_status", "dateemailed", "timetaken", "nonbilltime", "emailfrom", "emailtonew", "emailto", "emailccnew", "emaildirection", "emailcc", "emailsubjectnew", "email_message_id", "emailimportance"}),
+    #"Filtered Rows" = Table.SelectRows(#"Expanded Column1", each [ticket_id] <> null and [ticket_id] <> ""),
+    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows",{{"who_agentid", Int64.Type}, {"datetime", type datetime}, {"actiondatecreated", type datetime}, {"actionarrivaldate", type datetime}, {"actioncompletiondate", type datetime}})
+in
+#"Changed Type"

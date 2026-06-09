@@ -1,0 +1,72 @@
+let 
+Wait = Table.RowCount(#"Halo Dataset - Source"),
+// 1. Get the Token 
+token_url = "https://companyname.haloitsm.com/auth/token", 
+client_id = "IdNo", 
+client_secret = "SecretNo", 
+token_response = Json.Document(Web.Contents(token_url, [ 
+	Content = Text.ToBinary("grant_type=client_credentials&client_id=" & client_id & "&client_secret=" & client_secret & "&scope=all"), 
+	Headers = [#"Content-Type" = "application/x-www-form-urlencoded"]
+	 ])), 
+
+// Extract token - check if your API returns 'access_token' or 'token' 
+AccessToken = "Bearer " & token_response[access_token],
+     // 2. Stabilized Function for Feedback
+   GetPage = (PageNum) as table =>
+   let
+       Source = Json.Document(Web.Contents("https://companyname.haloitsm.com",
+       [
+           RelativePath = "api/Feedback",
+           Query = [
+               page_size = "50",
+               page_no = Text.From(PageNum),
+               paginate = "true"
+           ],
+           Headers = [Authorization=AccessToken]
+       ])),
+       // Handle different possible JSON structures safely
+       Data = if Source is list then Source
+              else if Record.HasFields(Source, "feedback") then Source[feedback]
+              else {},
+
+       TableOut = if Data is list then
+                      Table.FromList(Data, Splitter.SplitByNothing(), null, null, ExtraValues.Error)
+                  else
+                      #table({}, {})
+   in
+       TableOut,
+
+   // 3. Generate pages (Start with 5-10 to test, then expand)
+   PageIndices = {1..10},
+   AllPages = List.Transform(PageIndices, each GetPage(_)),
+   CombinedFeedback = Table.Combine(AllPages),
+
+   // 4. Connect to your existing cleaning steps
+   Table = CombinedFeedback,
+
+#"Expanded Column1" = Table.ExpandRecordColumn(Table, "Column1", Record.FieldNames(Table{0}[Column1])),
+    #"Sorted Rows" = Table.Sort(#"Expanded Column1",{{"ticket_id", Order.Ascending}}),
+    #"Filtered Rows" = Table.SelectRows(#"Sorted Rows", each ([ticket_id] <> 0)),
+    #"Removed Duplicates" = Table.Distinct(#"Filtered Rows", {"id"}),
+    #"Duplicated Column" = Table.DuplicateColumn(#"Removed Duplicates", "date", "date - Copy"),
+    #"Renamed Columns" = Table.RenameColumns(#"Duplicated Column",{{"date - Copy", "Feedback Date"}}),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Renamed Columns", "Feedback Date", Splitter.SplitTextByDelimiter("T", QuoteStyle.Csv), {"Feedback Date.1", "Feedback Date.2"}),
+    #"Changed Type" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Feedback Date.1", type date}, {"Feedback Date.2", type time}}),
+    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type",{{"Feedback Date.2", "Feedback Time"}, {"Feedback Date.1", "Feedback Date"}}),
+    #"Inserted Start of Month" = Table.AddColumn(#"Renamed Columns1", "Start of Month", each Date.StartOfMonth([Feedback Date]), type date),
+    #"Renamed Columns2" = Table.RenameColumns(#"Inserted Start of Month",{{"Start of Month", "Feedback Start of month"}}),
+    #"Inserted Start of Week" = Table.AddColumn(#"Renamed Columns2", "Feedback Start of Week", each Date.StartOfWeek([Feedback Date]), type date),
+    #"Added Custom" = Table.AddColumn(#"Inserted Start of Week", "Week Offset", each (Number.From(Date.StartOfWeek([Feedback Date]))
+-
+Number.From(Date.StartOfWeek(DateTime.LocalNow()))) / 7),
+    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Month Offset", each ((Date.Year([Feedback Date]) -
+Date.Year(DateTime.LocalNow())) * 12)
++ Date.Month([Feedback Date]) - 
+Date.Month(DateTime.LocalNow())),
+    #"Added Conditional Column" = Table.AddColumn(#"Added Custom1", "This/Last Week", each if [Week Offset] = -1 then "Last Week" else if [Week Offset] = 0 then "This Week" else null),
+    #"Added Conditional Column1" = Table.AddColumn(#"Added Conditional Column", "This/Last Month", each if [Month Offset] = -1 then "Last Month" else if [Month Offset] = 0 then "This Month" else null),
+    #"Trimmed Text" = Table.TransformColumns(#"Added Conditional Column1",{{"comment", Text.Trim, type text}}),
+    #"Added Conditional Column2" = Table.AddColumn(#"Trimmed Text", "Feedback Received?", each if [score] <> null then "Yes" else "No"),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Added Conditional Column2",{{"score", Int64.Type}, {"ticket_id", Int64.Type}})
+in
+    #"Changed Type1"
