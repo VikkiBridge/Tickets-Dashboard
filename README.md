@@ -9,7 +9,7 @@ The internal IT Support team was experiencing a high volume of support tickets a
 * Management had no clear visibility into peak operational hours or individual technician utilisation, leading to imbalanced workloads and delayed resolution times.
 ---
 ## **The Objective**
-The objective of thisproject was to develop a dynamic, operational Power BI dashboard connected directly to the HaloITSM data source.  The report serves as a "single pane of glass" for the IT Support Manager and Team Leads to track real-time queue health, optimise technician workflows, and protect business continuity.
+The objective of this project was to develop a dynamic, operational Power BI dashboard connected directly to the HaloITSM data source.  The report serves as a "single pane of glass" for the IT Support Manager and Team Leads to track real-time queue health, optimise technician workflows, and protect business continuity.
 ## **Target Audience & Core KPIs**
 * **Primary Users:** IT Support Desk Managers, Infrastructure Leads, and Operations Directors.
 * **Core Metrics Tracked:**
