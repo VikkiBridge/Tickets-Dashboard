@@ -2,13 +2,15 @@
 Power BI Dashboard created to analyse tickets, types, ages, satisfaction feedback
 ## 🏢 Business Problem & Objective
 The internal IT Support team was experiencing a high volume of support tickets across multiple functions and branches, but lacked a centralised, real-time mechanism to monitor performance and service-level agreements (SLAs).
-**Key Pain Points:**
+--- 
+## **Key Pain Points:**
 * Ticket backlogs, aging unassigned incidents and breach risks were hidden inside raw system logs, requiring manual report generation to review.
 * Team leads could not easily identify sytemic infrastructure issues (e.g., a sudden spike in login failures at a specific branch) versus iaolated user requests.
 * Management had no clear visibility into peak operational hours or individual technician utilisation, leading to imbalanced workloads and delayed resolution times.
-**The Objective**
+---
+## **The Objective**
 The objective of thisproject was to develop a dynamic, operational Power BI dashboard connected directly to the HaloITSM data source.  The report serves as a "single pane of glass" for the IT Support Manager and Team Leads to track real-time queue health, optimise technician workflows, and protect business continuity.
-**Target Audience & Core KPIs**
+## **Target Audience & Core KPIs**
 * **Primary Users:** IT Support Desk Managers, Infrastructure Leads, and Operations Directors.
 * **Core Metrics Tracked:**
   * **SLA Compliance %:** Percentage of tickets responded to and resolved within agreed corporate timeframes.
