@@ -1,2 +1,100 @@
-# Tickets-Dashboard
+# 📊 Tickets-Dashboard
 Power BI Dashboard created to analyse tickets, types, ages, satisfaction feedback
+## 🏢 Business Problem & Objective
+Provide a brief, 2-3 sentence overview of the business challenge.
+*What pain point does this report solve? Who are the target users?*
+(e.g., "The operational team lacked daily visibility into individual branch sales performance, causing delays in identifying low-performing regions and inventory bottlenecks.")
+---
+## 🛠️ Tech Stack & Architecture
+* **Tool:** Power BI Desktop / Fabric Cloud
+* **Data Sources:** [e.g., SQL Server, SharePoint Lists, API JSON extracts]
+* **Data Model:** Star Schema (1:Many relationships)
+---
+## 📐 Data Modeling & DAX Highlights
+Engineer Comparison Table = 
+VAR BaseTable = 'DimMetricNames'
+RETURN
+SELECTCOLUMNS(
+    BaseTable,
+    "Metric Name", 'DimMetricNames'[Metric Name],
+    "Apprentice Value", 
+        VAR AppRaw =
+        SWITCH(
+            'DimMetricNames'[Metric Name],
+            "Categories Handled", CALCULATE([Unique Categories Count], DimAgent[Job Role] = "Apprentice"),
+            "Tickets Closed", CALCULATE([Tickets Closed], 'DimAgent'[Job Role] = "Apprentice"),
+            "FCR Rate", CALCULATE([FCR Rate %], 'DimAgent'[Job Role] = "Apprentice"),
+            "Avg Resolution (days)", CALCULATE([Avg Resolution (days)], 'DimAgent'[Job Role] = "Apprentice"),
+            BLANK()
+        )
+        RETURN
+        SWITCH(
+            'DimMetricNames'[Metric Name],
+            "Categories Handled", FORMAT(AppRaw, "#,##0"),
+            "Tickets Closed", FORMAT(AppRaw, "#,##0"),
+            "FCR Rate", FORMAT(AppRaw, "0.0%"),
+            "Avg Resolution (days)", FORMAT(AppRaw, "0.00")
+        ),
+    "Senior Value",
+        VAR SenRaw = 
+        SWITCH(
+            'DimMetricNames'[Metric Name],
+            "Categories Handled", CALCULATE([Unique Categories Count], DimAgent[Job Role] = "Senior"),
+            "Tickets Closed", CALCULATE([Tickets Closed], 'DimAgent'[Job Role] = "Senior"),
+            "FCR Rate", CALCULATE([FCR Rate %], 'DimAgent'[Job Role] = "Senior"),
+            "Avg Resolution (days)", CALCULATE([Avg Resolution (days)], 'DimAgent'[Job Role] = "Senior"),
+            BLANK()
+        )
+         RETURN
+        SWITCH(
+            'DimMetricNames'[Metric Name],
+            "Categories Handled", FORMAT(SenRaw, "#,##0"),
+            "Tickets Closed", FORMAT(SenRaw, "#,##0"),
+            "FCR Rate", FORMAT(SenRaw, "0.0%"),
+            "Avg Resolution (days)", FORMAT(SenRaw, "0.00")
+),
+    "Gap",
+    VAR AppVal = 
+        SWITCH(
+            'DimMetricNames'[Metric Name],
+            "Categories Handled", CALCULATE([Unique Categories Count], DimAgent[Job Role] = "Apprentice"),
+            "Tickets Closed", CALCULATE([Tickets Closed], 'DimAgent'[Job Role] = "Apprentice"),
+            "FCR Rate", CALCULATE([FCR Rate %], 'DimAgent'[Job Role] = "Apprentice"),
+            "Avg Resolution (days)", CALCULATE([Avg Resolution (days)], 'DimAgent'[Job Role] = "Apprentice"),
+            BLANK()
+        )
+    VAR SenVal = 
+        SWITCH(
+            'DimMetricNames'[Metric Name],
+            "Categories Handled", CALCULATE([Unique Categories Count], DimAgent[Job Role] = "Senior"),
+            "Tickets Closed", CALCULATE([Tickets Closed], 'DimAgent'[Job Role] = "Senior"),
+            "FCR Rate", CALCULATE([FCR Rate %], 'DimAgent'[Job Role] = "Senior"),
+            "Avg Resolution (days)", CALCULATE([Avg Resolution (days)], 'DimAgent'[Job Role] = "Senior"),
+            BLANK()
+        )
+   -- Logic: Rates use Point Difference, others use Percentage Variance
+   VAR IsRate = CONTAINSSTRING('DimMetricNames'[Metric Name], "Rate")
+   VAR RawGap = IF(IsRate, (AppVal - SenVal) * 100, DIVIDE(AppVal - SenVal, SenVal, 0))
+   RETURN
+       SWITCH( TRUE(),
+           IsRate, FORMAT(RawGap, "+0.0 pts;-0.0 pts;0 pts"),
+           FORMAT(RawGap, "+0%;-0%;0%")
+       ),
+"Trend",
+   VAR MetricName = 'DimMetricNames'[Metric Name]
+   -- Calculate Gap for Current and Prior period
+   VAR CurrGap = [Metric Gap %]
+   VAR PrevGap = CALCULATE([Metric Gap %], DATEADD('DimCalendar'[Date], -1, MONTH))
+   VAR Improvement = CurrGap - PrevGap
+   RETURN
+       SWITCH( TRUE(),
+           -- For Resolution Days, a DECREASING gap is an improvement
+           MetricName = "Avg Resolution (days)",
+               IF(Improvement < 0, "↑ Improving", "↓ Declining"),
+           -- For Reopened Rate, a LOWER rate is better (so a decreasing gap is good)
+           MetricName = "Reopened Rate",
+               IF(Improvement < 0, "↑ Improving", "↓ Declining"),
+           -- For everything else (Closed, FCR, Categories), HIGHER is better
+           IF(Improvement > 0, "↑ Improving", "↓ Declining")
+       )
+)
