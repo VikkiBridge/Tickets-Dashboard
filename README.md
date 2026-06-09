@@ -24,7 +24,7 @@ The objective of this project was to develop a dynamic, operational Power BI das
 * **Data Model:** Star Schema (1:Many relationships)
 ---
 ## 📐 Data Modeling & DAX Highlights
-Below is an example of DAX used to build the model.  This particular code builds in a model that puts category counts, number of tickets closed, first contact resolution (FCR) Rate and the average number of days to close, and puts the averages for apprentices and seniors in a matrix table. This also leads to show where gaps are in ticket management, aiming to close those gaps.
+Below is an example of DAX used to build the model.  This particular code builds in a model that puts category counts, number of tickets closed, first contact resolution (FCR) Rate and the average number of days to close, and puts the averages for apprentices and seniors in a matrix table. This also leads to show where gaps are in ticket management, aiming to close those gaps. (Closer to zero is improving, moving away from zero is declining)
 
 ```dax
 // Build a table that measures metrics for aprrentices and senior IT technicians
